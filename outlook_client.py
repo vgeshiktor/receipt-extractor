@@ -10,7 +10,7 @@ URL_REGEX = re.compile(r"https?://[^\s<>\"]+", re.IGNORECASE)
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
 # Scopes מפורשים (Delegated) ל-Device Code Flow
-GRAPH_SCOPES = ["User.Read", "Mail.Read", "email"]
+GRAPH_SCOPES = ["User.Read", "Mail.ReadWrite", "Mail.Send", "email"]
 
 def _token_cache_path():
     return os.environ.get("MSAL_TOKEN_CACHE", "token_ms.json")
