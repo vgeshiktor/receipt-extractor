@@ -144,7 +144,15 @@ class GraphClient:
                 backoff = min(backoff * 2, 8.0)
                 continue
 
-            # Refresh on 401 once
+            # Refresh on 401 up to 2 times for robustness
+            if not hasattr(self, "_refresh_attempts"):
+                self._refresh_attempts = 0
+            if resp.status_code == 401 and self._refresh_attempts < 2:
+                self.access_token = self.token_provider(force=True)
+                self._refresh_attempts += 1
+                continue
+            # Reset refresh attempts counter on success or other errors
+            self._refresh_attempts = 0
             if resp.status_code == 401 and attempt == 0:
                 self.access_token = self.token_provider(force=True)
                 continue
@@ -182,10 +190,8 @@ def flatten_addresses(recipients: Optional[List[Dict[str, Any]]]) -> str:
         if not isinstance(addr, dict):
             continue
         name = addr.get("name") or ""
-        email = addr.get("address") or ""
-        if not email:
-            continue  # skip if no email address
-        emails.append(f"{name} <{email}>" if name else email)
+        if email := addr.get("address") or "":
+            emails.append(f"{name} <{email}>" if name else email)
     return "; ".join(emails)
 
 
@@ -319,12 +325,18 @@ def main() -> None:
     print(f"Retrieved {len(msgs)} message(s).")
 
     if args.out_json:
-        save_json(msgs, args.out_json)
-        print(f"Wrote JSON: {args.out_json}")
+        try:
+            save_json(msgs, args.out_json)
+            print(f"Wrote JSON: {args.out_json}")
+        except Exception as e:
+            print(f"Error writing JSON to {args.out_json}: {e}")
 
     if args.out_csv:
-        save_csv(msgs, args.out_csv)
-        print(f"Wrote CSV:  {args.out_csv}")
+        try:
+            save_csv(msgs, args.out_csv)
+            print(f"Wrote CSV:  {args.out_csv}")
+        except Exception as e:
+            print(f"Error writing CSV to {args.out_csv}: {e}")
 
 
 if __name__ == "__main__":
