@@ -175,9 +175,16 @@ def flatten_addresses(recipients: Optional[List[Dict[str, Any]]]) -> str:
         return ""
     emails = []
     for r in recipients:
-        addr = r.get("emailAddress", {})
+        # Validate recipient is a dict and has "emailAddress" as a dict
+        if not isinstance(r, dict):
+            continue
+        addr = r.get("emailAddress")
+        if not isinstance(addr, dict):
+            continue
         name = addr.get("name") or ""
         email = addr.get("address") or ""
+        if not email:
+            continue  # skip if no email address
         emails.append(f"{name} <{email}>" if name else email)
     return "; ".join(emails)
 
@@ -226,8 +233,15 @@ def list_messages(graph: GraphClient, folder: str, select: str, odata_filter: Op
         url = payload.get("@odata.nextLink")
         params = None
         if url and len(messages) + top > max_results:
-            # reduce next page size
-            url += ("&" if "?" in url else "?") + f"$top={max_results - len(messages)}"
+            # reduce next page size, update or add $top in nextLink
+            from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+            remaining = max_results - len(messages)
+            parsed = urlparse(url)
+            query = parse_qs(parsed.query)
+            query["$top"] = [str(remaining)]
+            new_query = urlencode(query, doseq=True)
+            url = urlunparse(parsed._replace(query=new_query))
     return messages[:max_results]
 
 

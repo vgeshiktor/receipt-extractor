@@ -35,9 +35,7 @@ def msal_acquire_token_device_flow(client_id: str, authority: str) -> str:
     cache = _load_msal_cache()
     app = msal.PublicClientApplication(client_id=client_id, authority=authority, token_cache=cache)
 
-    # נסיון שקט
-    accounts = app.get_accounts()
-    if accounts:
+    if accounts := app.get_accounts():
         result = app.acquire_token_silent(GRAPH_SCOPES, account=accounts[0])
         if result and "access_token" in result:
             _save_msal_cache(cache)
@@ -97,9 +95,11 @@ def list_message_ids(outlook, user: str = "me", filter_expr: str = "", token: st
         resp = requests.get(url, headers=_headers(token), params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        for item in data.get("value", []):
-            if item.get("hasAttachments"):
-                ids.append(item["id"])
+        ids.extend(
+            item["id"]
+            for item in data.get("value", [])
+            if item.get("hasAttachments")
+        )
         next_link = data.get("@odata.nextLink")
         if not next_link:
             break
@@ -139,10 +139,10 @@ def get_attachment_parts(outlook, msg_id: str) -> List[Tuple[str, str]]:
             if "@odata.type" in att and att["@odata.type"].endswith("FileAttachment"):
                 name = att.get("name") or att.get("fileName") or "attachment"
                 parts.append((name, att["id"]))
-        next_link = data.get("@odata.nextLink")
-        if not next_link:
+        if next_link := data.get("@odata.nextLink"):
+            url = next_link
+        else:
             break
-        url = next_link
     return parts
 
 def download_attachment_bytes(outlook, msg_id: str, attachment_id: str) -> bytes:
@@ -154,7 +154,7 @@ def download_attachment_bytes(outlook, msg_id: str, attachment_id: str) -> bytes
     resp = requests.get(url, headers=_headers(token), timeout=30)
     resp.raise_for_status()
     att = resp.json()
-    content = att.get("contentBytes")
-    if not content:
+    if content := att.get("contentBytes"):
+        return base64.b64decode(content)
+    else:
         raise RuntimeError("Attachment has no contentBytes.")
-    return base64.b64decode(content)
